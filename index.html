@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calistenia y Bici</title>
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Calistenia y Bici">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  body{background:#0f172a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-serif}
+  .fig{stroke:#e2e8f0;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;fill:none}
+  .headc{fill:#e2e8f0}
+  .floor{stroke:#475569;stroke-width:3}
+  .arrow{stroke:#f59e0b;stroke-width:4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .obj{stroke:#94a3b8;stroke-width:4;fill:none;stroke-linecap:round}
+  .card{background:#1e293b;border-radius:1rem;padding:1rem}
+  .btn{border-radius:.85rem;padding:.95rem 1rem;font-weight:600;width:100%;display:block;text-align:center}
+  .b1{background:#f59e0b;color:#0f172a}
+  .b2{background:#334155;color:#e2e8f0}
+  input[type=range]{width:100%;accent-color:#f59e0b}
+  input,textarea,select{background:#0f172a;border:1px solid #334155;border-radius:.6rem;padding:.7rem;color:#e2e8f0;width:100%}
+  .chip{display:inline-block;font-size:.7rem;padding:.1rem .5rem;border-radius:999px;background:#334155;color:#cbd5e1}
+</style>
+</head>
+<body class="min-h-screen">
+<div id="app" class="max-w-md mx-auto p-4 pb-10"></div>
+<div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-4 py-2 rounded-xl hidden"></div>
+
+<script>
+// ====== CONFIGURACIÓN DE FIREBASE (pegar acá los datos del proyecto) ======
+const firebaseConfig = {
+  apiKey: "AIzaSyBKDSlejQFJZ6w45Z336UGJZCKuuP1GjVk",
+  authDomain: "calistenia-y-bici.firebaseapp.com",
+  projectId: "calistenia-y-bici",
+  storageBucket: "calistenia-y-bici.firebasestorage.app",
+  messagingSenderId: "97430007525",
+  appId: "1:97430007525:web:31bf4fd6b03af5705cee0c"
+};
+// ==========================================================================
+const VERSION = "v3";
+let db = null;
+try { if (firebaseConfig.apiKey) { firebase.initializeApp(firebaseConfig); db = firebase.firestore(); try{ db.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){} } } catch(e) { console.error(e); }
+
+// ---------- Dibujos ----------
+const F = s => `<svg viewBox="0 0 200 115" class="w-full h-full">${s}<line class="floor" x1="5" y1="107" x2="195" y2="107"/></svg>`;
+const P = p => `<polyline class="fig" points="${p}"/>`;
+const H = (x,y) => `<circle class="headc" cx="${x}" cy="${y}" r="8"/>`;
+const O = p => `<polyline class="obj" points="${p}"/>`;
+function A(x1,y1,x2,y2){const a=Math.atan2(y2-y1,x2-x1),h=10;
+  const p1=[x2-h*Math.cos(a-0.5),y2-h*Math.sin(a-0.5)],p2=[x2-h*Math.cos(a+0.5),y2-h*Math.sin(a+0.5)];
+  return `<path class="arrow" d="M${x1} ${y1}L${x2} ${y2}M${p1[0]} ${p1[1]}L${x2} ${y2}L${p2[0]} ${p2[1]}"/>`;}
+const PARADO = (x=100) => H(x,16)+P(`${x},25 ${x},60`)+P(`${x},60 ${x-4},83 ${x-4},105`)+P(`${x},60 ${x+4},83 ${x+4},105`);
+const CUATRO = H(45,62)+P("55,66 130,66")+P("60,66 60,105")+P("130,66 130,105 158,105");
+
+// ---------- Ejercicios ----------
+// p: patrón · lv: nivel (1 inicial, 2 intermedio, 3 avanzado) · r: repeticiones · s: segundos (isométrico) · lado: se hace de cada lado
+const EJ = {
+  // Calentamiento
+  marcha:{n:"Marcha en el lugar",p:"cal",s:40,d:"Marchá suave subiendo las rodillas a una altura cómoda y moviendo los brazos.",
+    img:F(H(100,18)+P("100,27 100,62")+P("86,52 100,34 114,52")+P("100,62 96,84 96,105")+P("100,62 120,70 118,92")+A(145,98,145,68))},
+  brazos:{n:"Círculos de brazos",p:"cal",s:40,d:"Brazos abiertos a los costados. Hacé círculos chicos que se van agrandando. A la mitad cambiá de sentido.",
+    img:F(PARADO()+P("68,34 100,34 132,34")+`<circle class="arrow" cx="62" cy="34" r="9"/><circle class="arrow" cx="138" cy="34" r="9"/>`)},
+  cadera:{n:"Círculos de cadera",p:"cal",s:40,d:"Manos en la cintura y pies al ancho de los hombros. Dibujá círculos lentos con la cadera. A la mitad cambiá de sentido.",
+    img:F(PARADO()+P("100,32 86,44 96,58")+P("100,32 114,44 104,58")+`<ellipse class="arrow" cx="100" cy="62" rx="26" ry="7"/>`)},
+  gato:{n:"Gato y camello",p:"cal",s:40,d:"En cuatro patas. Arqueá la espalda hacia arriba mirando el ombligo y después bajala mirando adelante. Lento y con la respiración. Si apoyar las rodillas molesta, poné una toalla.",
+    img:F(H(45,62)+`<path class="fig" d="M55 66 Q95 44 130 66"/>`+P("60,66 60,105")+P("130,66 130,105 158,105")+A(95,36,95,20))},
+  // Empuje (pecho, hombros, tríceps)
+  flexPared:{n:"Flexiones contra la pared",p:"empuje",lv:1,r:12,d:"Frente a la pared, a un paso largo, con las manos a la altura de los hombros. Llevá el pecho hacia la pared doblando los codos y empujá para volver. Cuerpo recto.",
+    img:F(`<line class="obj" x1="168" y1="8" x2="168" y2="107"/>`+P("70,105 112,70 145,42")+H(152,33)+P("143,46 152,64 166,50")+A(100,38,132,22))},
+  flexMesa:{n:"Flexiones inclinadas en mesada",p:"empuje",lv:1,r:10,d:"Manos en el borde de la mesada o de una mesa firme, cuerpo recto en diagonal. Bajá el pecho hacia el borde y empujá. Cuanto más baja la superficie, más difícil.",
+    img:F(O("150,58 195,58")+O("188,58 188,105")+P("55,105 100,80 140,60")+H(146,50)+P("140,62 146,72 154,58")+A(112,52,124,64))},
+  flexRod:{n:"Flexiones con rodillas apoyadas",p:"empuje",lv:2,r:8,d:"Manos en el piso un poco más abiertas que los hombros y rodillas apoyadas (con toalla si molesta). Bajá el pecho con el cuerpo recto de cabeza a rodillas y empujá.",
+    img:F(H(32,62)+P("42,70 95,88 125,104 150,92")+P("44,72 46,104")+A(70,48,70,66))},
+  fondos:{n:"Fondos en silla",p:"empuje",lv:2,r:8,d:"De espaldas a una silla firme apoyada contra la pared, manos en el borde del asiento. Bajá doblando los codos hasta donde sea cómodo y subí. Rodillas dobladas para que sea más fácil.",
+    img:F(O("110,70 150,70")+O("112,70 112,105")+O("148,70 148,105")+O("150,70 150,32")+H(93,46)+P("95,56 95,85 65,85 65,105")+P("95,58 108,62 112,70")+A(48,48,48,72))},
+  flexComp:{n:"Flexiones completas",p:"empuje",lv:3,r:8,d:"Manos en el piso y apoyado en las puntas de los pies, cuerpo recto. Bajá el pecho cerca del piso y empujá. Si no salen todas, terminá con rodillas apoyadas.",
+    img:F(H(30,60)+P("40,68 100,82 172,102")+P("42,70 44,104")+A(70,44,70,62))},
+  pica:{n:"Flexión pica",p:"empuje",lv:3,r:6,d:"Manos en el piso y cadera bien arriba, formando una V invertida. Doblá los codos llevando la cabeza hacia el piso entre las manos y empujá. Trabaja los hombros.",
+    img:F(H(60,86)+P("68,80 110,45 160,105")+P("68,80 62,105")+A(40,62,40,86))},
+  // Tirón (espalda, bíceps)
+  superman:{n:"Superman",p:"tiron",lv:1,r:10,d:"Acostado boca abajo, brazos estirados hacia adelante. Levantá a la vez brazos, pecho y piernas unos centímetros, aguantá 2 segundos y bajá.",
+    img:F(H(32,90)+P("40,96 15,84")+P("42,98 120,100 180,90")+A(100,92,100,70))},
+  angeles:{n:"Brazos en Y boca abajo",p:"tiron",lv:1,r:10,d:"Acostado boca abajo con la frente apoyada en una toalla. Brazos estirados en forma de Y con los pulgares hacia arriba. Levantalos juntando los omóplatos y bajalos lento.",
+    img:F(H(34,94)+P("44,98 120,100 180,102")+P("42,96 12,82")+A(22,100,22,72))},
+  remoToalla:{n:"Remo con toalla en la puerta",p:"tiron",lv:1,r:12,d:"Pasá una toalla alrededor del picaporte de los dos lados de una puerta bien cerrada. Agarrá las puntas, inclinate hacia atrás con los brazos estirados y tirá llevando el pecho hacia la puerta. Cuanto más inclinado, más difícil.",
+    img:F(`<line class="obj" x1="172" y1="8" x2="172" y2="107" style="stroke-width:6"/>`+O("130,56 172,56")+H(88,30)+P("95,40 118,70 145,105")+P("97,44 130,56")+A(58,52,82,46))},
+  remoMesa:{n:"Remo debajo de la mesa",p:"tiron",lv:2,r:8,d:"Acostado debajo de una mesa MUY firme, agarrá el borde con las dos manos. Rodillas dobladas y pies apoyados. Tirá llevando el pecho hacia la mesa con el cuerpo recto y bajá lento.",
+    img:F(O("40,40 122,40")+O("46,40 46,105")+H(90,84)+P("100,80 135,90 160,72 170,105")+P("100,80 115,42")+A(75,98,75,72))},
+  remoMesaRecto:{n:"Remo debajo de la mesa, piernas estiradas",p:"tiron",lv:3,r:8,d:"Igual que el remo debajo de la mesa, pero con las piernas estiradas y apoyado en los talones. Cuerpo recto como una tabla.",
+    img:F(O("40,40 122,40")+O("46,40 46,105")+H(90,84)+P("100,80 185,102")+P("100,80 115,42")+A(75,98,75,72))},
+  // Piernas (cuidando rodillas)
+  silla:{n:"Sentarse y pararse",p:"piernas",lv:1,r:10,d:"Silla firme, pies al ancho de la cadera. Parate usando las piernas, sin impulso, y sentate despacio. Rodillas apuntando hacia los pies. Si molesta, silla más alta o ayudate con las manos.",
+    img:F(O("140,28 140,105")+O("108,72 140,72")+O("110,72 110,105")+H(122,24)+P("124,33 126,66 96,70 96,105")+P("121,42 95,54")+A(68,98,68,52))},
+  talones:{n:"Elevación de talones",p:"piernas",lv:1,r:15,d:"Parado, agarrado del respaldo de una silla o de la mesada. Subí en puntas de pie y bajá despacio.",
+    img:F(O("135,40 135,105")+O("135,72 165,72 165,105")+H(90,16)+P("90,25 90,60")+P("90,60 89,82 90,97 101,105")+P("90,32 132,46")+A(62,100,62,70))},
+  sillaLenta:{n:"Sentarse en 3 tiempos",p:"piernas",lv:2,r:8,d:"Como sentarse y pararse, pero bajando muy lento: contá 3 segundos hasta tocar la silla. Subí normal. Sin rebotar.",
+    img:F(O("140,28 140,105")+O("108,72 140,72")+O("110,72 110,105")+H(118,28)+P("120,37 124,64 98,72 98,105")+P("118,46 92,54")+A(68,52,68,96))},
+  pared:{n:"Sentadilla en la pared",p:"piernas",lv:2,s:25,d:"Espalda apoyada en la pared, deslizate un poco hacia abajo. Bajá solo hasta donde la rodilla esté cómoda, sin llegar a 90 grados. Aguantá el tiempo.",
+    img:F(`<line class="obj" x1="150" y1="8" x2="150" y2="107"/>`+H(140,18)+P("142,27 142,62 118,76 120,105")+P("142,34 128,52"))},
+  talonUna:{n:"Talones a una pierna",p:"piernas",lv:2,r:10,lado:true,d:"Agarrado de una silla, apoyá un solo pie y subí en puntas. Bajá despacio. Después cambiá de pierna.",
+    img:F(O("135,40 135,105")+O("135,72 165,72 165,105")+H(90,16)+P("90,25 90,60")+P("90,60 89,82 90,97 101,105")+P("90,60 96,80 80,88")+P("90,32 132,46")+A(62,100,62,70))},
+  escalon:{n:"Subir a un escalón",p:"piernas",lv:2,r:8,lado:true,d:"Un escalón bajo (el primero de una escalera). Subí apoyando todo el pie y empujando con esa pierna, bajá controlado. Si molesta la rodilla, cambiá por sentarse y pararse.",
+    img:F(O("110,90 165,90 165,107")+H(105,16)+P("105,25 105,60")+P("90,50 105,33 120,50")+P("105,60 98,83 95,105")+P("105,60 125,72 126,90")+A(72,98,72,66))},
+  // Cadera y glúteos
+  puente:{n:"Puente de glúteos",p:"cadera",lv:1,r:12,d:"Boca arriba, rodillas dobladas y pies apoyados. Apretá los glúteos y subí la cadera hasta una línea de hombros a rodillas. Bajá lento.",
+    img:F(H(28,97)+P("38,100 92,72 128,70 140,104")+P("45,102 85,104")+A(92,62,92,38))},
+  lateral:{n:"Pierna al costado",p:"cadera",lv:1,r:10,lado:true,d:"Acostado de costado, la pierna de abajo un poco doblada. Subí la de arriba estirada, sin girar la cadera, y bajá lento.",
+    img:F(H(28,88)+P("38,95 105,97 175,101")+P("105,97 168,68")+P("40,95 26,101")+A(184,98,184,70))},
+  patada:{n:"Patada atrás en cuatro patas",p:"cadera",lv:1,r:10,lado:true,d:"En cuatro patas (toalla bajo las rodillas). Con la rodilla doblada, subí un pie hacia el techo apretando el glúteo, sin arquear la espalda. Bajá.",
+    img:F(H(45,62)+P("55,66 130,66")+P("60,66 60,105")+P("130,66 130,105 158,105")+P("130,66 162,62 166,38")+A(185,70,185,44))},
+  bisagra:{n:"Bisagra de cadera",p:"cadera",lv:1,r:12,d:"Parado, rodillas apenas flojas, manos en el pecho. Llevá la cola hacia atrás inclinando el torso con la espalda recta, hasta sentir la parte de atrás de las piernas. Volvé apretando los glúteos.",
+    img:F(H(60,40)+P("70,46 110,60")+P("110,60 108,83 110,105")+P("72,48 82,58")+A(40,70,40,44))},
+  puenteUna:{n:"Puente a una pierna",p:"cadera",lv:3,r:8,lado:true,d:"Como el puente, pero con una pierna estirada en el aire. Subí la cadera sin que se tuerza. Después cambiá de pierna.",
+    img:F(H(28,97)+P("38,100 92,72 128,70 140,104")+P("92,72 168,56")+P("45,102 85,104")+A(92,62,92,38))},
+  // Abdomen
+  planchaRod:{n:"Plancha en rodillas",p:"abdomen",lv:1,s:20,d:"Antebrazos y rodillas apoyados, cuerpo recto de cabeza a rodillas. Apretá el abdomen y respirá normal.",
+    img:F(H(38,70)+P("48,78 100,88 125,101 158,90")+P("50,80 52,102 28,102"))},
+  deadbug:{n:"Bicho muerto",p:"abdomen",lv:1,r:10,d:"Boca arriba, brazos hacia el techo y rodillas dobladas en el aire. Estirá a la vez un brazo hacia atrás y la pierna contraria hacia adelante, sin despegar la espalda baja del piso. Volvé y alterná.",
+    img:F(H(30,95)+P("40,99 100,99")+P("48,99 52,62")+P("44,99 14,82")+P("100,99 106,70 134,70")+P("100,99 175,86"))},
+  birddog:{n:"Perro de caza",p:"abdomen",lv:1,r:10,d:"En cuatro patas. Estirá a la vez un brazo hacia adelante y la pierna contraria hacia atrás, aguantá 2 segundos sin que la cadera se tuerza. Volvé y alterná.",
+    img:F(H(45,62)+P("55,66 130,66")+P("60,66 60,105")+P("55,64 15,58")+P("130,66 130,105 158,105")+P("130,66 185,62"))},
+  lateralRod:{n:"Plancha lateral en rodillas",p:"abdomen",lv:1,s:15,lado:true,d:"De costado, apoyado en el antebrazo y en las rodillas dobladas. Subí la cadera formando una línea de hombro a rodillas. Aguantá y cambiá de lado.",
+    img:F(H(38,70)+P("45,80 95,92 120,104 150,98")+P("45,80 40,104 62,104")+A(90,72,90,56))},
+  planchaComp:{n:"Plancha completa",p:"abdomen",lv:2,s:25,d:"Antebrazos y puntas de pie apoyados, cuerpo recto como una tabla. Apretá abdomen y glúteos y respirá normal.",
+    img:F(H(38,70)+P("48,78 175,100")+P("50,80 52,102 28,102"))},
+  lateralComp:{n:"Plancha lateral",p:"abdomen",lv:2,s:20,lado:true,d:"De costado, apoyado en el antebrazo y en los pies, cuerpo recto. Aguantá y cambiá de lado.",
+    img:F(H(38,70)+P("45,80 175,104")+P("45,80 40,104 62,104"))},
+  toques:{n:"Toques de hombro en plancha",p:"abdomen",lv:3,r:12,d:"En plancha alta (manos en el piso, brazos estirados). Tocá con una mano el hombro contrario sin que la cadera se mueva. Alterná. Pies más abiertos lo hace más fácil.",
+    img:F(H(30,58)+P("40,66 175,102")+P("42,68 44,104")+P("44,70 60,70"))},
+  // Para cerrar (estiramientos)
+  estPecho:{n:"Estiramiento de pecho",p:"fin",s:30,lado:true,d:"Parado al lado de la pared, apoyá la palma con el brazo estirado a la altura del hombro y girá el cuerpo hacia el otro lado hasta sentir el pecho. A la mitad cambiá de brazo.",
+    img:F(`<line class="obj" x1="58" y1="8" x2="58" y2="107"/>`+PARADO()+P("100,34 62,34"))},
+  estIsquios:{n:"Estiramiento de piernas sentado",p:"fin",s:30,d:"Sentado en el piso con las piernas estiradas (rodillas apenas flojas). Inclinate hacia adelante con la espalda recta hasta sentir la parte de atrás de las piernas. Sin rebotar.",
+    img:F(H(103,64)+P("95,72 60,100 165,100")+P("92,76 140,95"))},
+  estBrazo:{n:"Brazo cruzado",p:"fin",s:30,lado:true,d:"Parado, cruzá un brazo estirado por delante del pecho y sostenelo con el otro. A la mitad cambiá de brazo.",
+    img:F(PARADO()+P("100,34 128,42 86,42"))},
+  estGato:{n:"Gato y camello suave",p:"fin",s:30,d:"En cuatro patas, arqueá y bajá la espalda muy lento, respirando hondo.",
+    img:F(H(45,62)+`<path class="fig" d="M55 66 Q95 44 130 66"/>`+P("60,66 60,105")+P("130,66 130,105 158,105"))}
+};
+const PATRONES = {empuje:"Pecho y brazos (empuje)",tiron:"Espalda (tirón)",piernas:"Piernas",cadera:"Cadera y glúteos",abdomen:"Abdomen",cal:"Calentamiento",fin:"Para cerrar"};
+const NIVELES = {1:"Inicial",2:"Intermedio",3:"Avanzado"};
+
+// Tipos de día: cuerpo completo siempre, con un ejercicio extra del foco del día
+const DIAS = [
+  {id:"A",nombre:"Día de empuje",foco:"Cuerpo completo con extra de pecho y brazos",extra:"empuje"},
+  {id:"B",nombre:"Día de tirón",foco:"Cuerpo completo con extra de espalda",extra:"tiron"},
+  {id:"C",nombre:"Día de cadera",foco:"Cuerpo completo con extra de glúteos y cadera",extra:"cadera"}
+];
+const FORMATOS = {
+  circuito:{n:"Circuito",d:"Todos los ejercicios seguidos, 2 vueltas."},
+  series:{n:"Series",d:"Cada ejercicio 2 veces antes de pasar al siguiente."},
+  tiempo:{n:"Contra reloj",d:"40 segundos de trabajo y 20 de descanso, 2 vueltas. Hacé las que puedas, a buen ritmo."},
+  pares:{n:"De a pares",d:"Ejercicios de a dos, alternando, 2 vueltas por par."}
+};
+
+// ---------- Utilidades ----------
+const $ = s => document.querySelector(s);
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function ls(k,v){try{ if(v===undefined) return localStorage.getItem(k); if(v===null) localStorage.removeItem(k); else localStorage.setItem(k,v);}catch(e){return null}}
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.remove("hidden");setTimeout(()=>t.classList.add("hidden"),2200)}
+let actx=null;
+function beep(f=880,d=0.25){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=f;o.connect(g);g.connect(actx.destination);g.gain.setValueAtTime(0.3,actx.currentTime);o.start();o.stop(actx.currentTime+d);}catch(e){}}
+const fmt = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+const fechaTxt = iso => new Date(iso).toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"});
+const azar = a => a[Math.floor(Math.random()*a.length)];
+const mezclar = a => a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(x=>x[1]);
+
+// ---------- Usuario y datos ----------
+let usuario = ls("rutina_usuario");
+let nivel = 1, SESIONES = [], HOY = null;
+const uid = () => usuario.trim().toLowerCase().replace(/\s+/g,"-");
+const refUser = () => db.collection("usuarios").doc(uid());
+
+async function guardar(ses){
+  if(db){ await refUser().collection("sesiones").add(ses); }
+  else { const k="rutina_local_"+uid(); const a=JSON.parse(ls(k)||"[]"); a.push(ses); ls(k,JSON.stringify(a)); }
+}
+async function cargar(){
+  if(db){ const s=await refUser().collection("sesiones").orderBy("fecha","desc").limit(60).get(); return s.docs.map(d=>d.data()); }
+  return JSON.parse(ls("rutina_local_"+uid())||"[]").sort((a,b)=>b.fecha.localeCompare(a.fecha));
+}
+async function cargarNivel(){
+  try{ if(db){ const d=await refUser().get(); nivel=(d.exists&&d.data().nivel)||1; } else nivel=+(ls("rutina_nivel_"+uid())||1); }catch(e){ nivel=1; }
+}
+async function guardarNivel(n){
+  nivel=n; if(db) await refUser().set({nivel:n},{merge:true}); else ls("rutina_nivel_"+uid(),String(n));
+}
+
+// ---------- Generador de rutinas ----------
+function elegir(patron, usados, evitar){
+  const todos=Object.entries(EJ).filter(([,e])=>e.p===patron);
+  const deNivel=todos.filter(([,e])=>e.lv<=nivel && e.lv>=nivel-1);
+  const base=deNivel.length?deNivel:todos.filter(([,e])=>e.lv<=nivel);
+  let c=base.filter(([id])=>!usados.has(id)&&!evitar.has(id));
+  if(!c.length) c=base.filter(([id])=>!usados.has(id));
+  if(!c.length) c=todos.filter(([id])=>!usados.has(id));
+  return c.length?azar(c)[0]:null;
+}
+function generar(evitarExtra){
+  const ultima = SESIONES.find(s=>s.rutina && s.tipoDia);
+  const iDia = ultima ? (DIAS.findIndex(d=>d.id===ultima.tipoDia)+1)%3 : 0;
+  const dia = DIAS[iDia];
+  const evitar = new Set([...(ultima?.ejercicios||[]), ...(evitarExtra||[])]);
+  const usados = new Set();
+  const patrones = ["empuje","tiron","piernas","cadera","abdomen"];
+  const principal=[];
+  for(const p of patrones){ const id=elegir(p,usados,evitar); if(id){usados.add(id);principal.push(id);} }
+  const ex=elegir(dia.extra,usados,evitar); if(ex){usados.add(ex);principal.splice(patrones.indexOf(dia.extra)+1,0,ex);}
+  const fmts = Object.keys(FORMATOS).filter(f=>f!==ultima?.formato && f!==HOY?.formato);
+  const formato = azar(fmts);
+  const cal = ["marcha", ...mezclar(["brazos","cadera","gato"]).slice(0,2)];
+  const fin = mezclar(["estPecho","estIsquios","estBrazo","estGato"]).slice(0,2);
+  const r = {tipoDia:dia.id, formato, principal, cal, fin};
+  r.pasos = armarPasos(r);
+  r.minutos = Math.round(r.pasos.reduce((a,p)=>a+(p.t==="desc"?p.seg:(p.tipo==="tiempo"?p.seg:45)),0)/60);
+  return r;
+}
+function dosis(id, modo){
+  const e=EJ[id];
+  if(modo==="tiempo"){ const seg = e.s ? Math.min(40,e.s+10) : 40;
+    return {tipo:"tiempo",seg,txt:`${seg} segundos${e.lado?" (cambiá de lado a la mitad)":""}`}; }
+  if(e.s) return {tipo:"tiempo",seg:e.s*(e.lado?2:1),txt:`${e.s} segundos${e.lado?" por lado":""}`};
+  return {tipo:"reps",txt:`${e.r} repeticiones${e.lado?" por lado":""}`};
+}
+function armarPasos(r){
+  const p=[]; const ej=(id,etq,modo)=>p.push({t:"ej",id,etq,...dosis(id,modo)}); const desc=seg=>p.push({t:"desc",seg});
+  r.cal.forEach(id=>p.push({t:"ej",id,etq:"Calentamiento",tipo:"tiempo",seg:EJ[id].s,txt:`${EJ[id].s} segundos`}));
+  desc(20);
+  const L=r.principal;
+  if(r.formato==="circuito"||r.formato==="tiempo"){
+    for(let v=1;v<=2;v++){ L.forEach((id,i)=>{ ej(id,`Vuelta ${v} de 2`, r.formato==="tiempo"?"tiempo":"normal"); if(i<L.length-1) desc(20); }); if(v<2) desc(60); }
+  } else if(r.formato==="series"){
+    L.forEach((id,i)=>{ for(let s=1;s<=2;s++){ ej(id,`Serie ${s} de 2`,"normal"); if(!(i===L.length-1&&s===2)) desc(s===1?40:30); } });
+  } else {
+    for(let i=0;i<L.length;i+=2){ const par=L.slice(i,i+2);
+      for(let v=1;v<=2;v++){ par.forEach((id,j)=>{ ej(id,`Par ${i/2+1} · vuelta ${v} de 2`,"normal"); if(j<par.length-1) desc(15); });
+        if(!(i+2>=L.length&&v===2)) desc(45); } }
+  }
+  desc(20);
+  r.fin.forEach(id=>p.push({t:"ej",id,etq:"Para cerrar",tipo:"tiempo",seg:EJ[id].s,txt:`${EJ[id].s} segundos${EJ[id].lado?" (cambiá a la mitad)":""}`}));
+  return p;
+}
+
+// ---------- Pantallas ----------
+const app = () => $("#app");
+const mini = id => `<div class="w-16 h-10 shrink-0">${EJ[id].img}</div>`;
+
+function vLogin(){
+  app().innerHTML = `
+  <div class="pt-16 text-center">
+    <div class="text-5xl mb-2">💪</div>
+    <h1 class="text-3xl font-bold mb-1">Calistenia y Bici</h1>
+    <p class="text-slate-400 mb-8">Calistenia en casa y bici</p>
+    <div class="card text-left">
+      <label class="block text-sm text-slate-400 mb-2">Tu nombre</label>
+      <input id="nom" placeholder="Diego" autocomplete="off">
+      <button id="ent" class="btn b1 mt-4">Entrar</button>
+    </div>
+  </div>`;
+  const go=()=>{const n=$("#nom").value.trim(); if(!n) return; usuario=n; ls("rutina_usuario",n); vHome();};
+  $("#ent").onclick=go; $("#nom").onkeydown=e=>{if(e.key==="Enter")go();};
+}
+
+async function vHome(){
+  app().innerHTML = `
+  <div class="flex justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold">Hola, ${esc(usuario)}</h1>
+    <button id="salir" class="text-sm text-slate-400">Salir</button>
+  </div>
+  ${db?"":`<div class="card mb-4 text-sm text-amber-300">Modo prueba: los datos se guardan solo en este dispositivo hasta conectar Firebase.</div>`}
+  <div id="resumen" class="card mb-4 text-slate-300">Cargando…</div>
+  <div id="hoy" class="card mb-4">Armando la rutina de hoy…</div>
+  <button id="reg" class="btn b2 mb-3">Registrar solo bici o un día sin rutina</button>
+  <div class="grid grid-cols-2 gap-3 mb-4">
+    <button id="ejs" class="btn b2">Ver ejercicios</button>
+    <button id="his" class="btn b2">Historial</button>
+  </div>
+  <div class="card mb-4">
+    <label class="block text-sm text-slate-400 mb-1">Mi nivel</label>
+    <select id="niv">${[1,2,3].map(n=>`<option value="${n}">${NIVELES[n]}</option>`).join("")}</select>
+    <p class="text-xs text-slate-500 mt-2">Subí de nivel cuando las rutinas te resulten fáciles y las rodillas estén bien varias semanas seguidas.</p>
+  </div>
+  <div class="card text-sm text-slate-400">Ideal: 3 días por semana con un día de descanso entre medio. Si una rodilla se hincha o duele más que de costumbre, hacé la mitad o descansá. Molestia leve (hasta 3 de 10) está bien.</div>
+  <p class="text-center text-xs text-slate-600 mt-6">Calistenia y Bici ${VERSION}</p>`;
+  $("#salir").onclick=()=>{ls("rutina_usuario",null);usuario=null;vLogin();};
+  $("#reg").onclick=()=>vRegistro(null);
+  $("#ejs").onclick=vEjercicios; $("#his").onclick=vHistorial;
+  try{
+    await cargarNivel(); $("#niv").value=nivel;
+    SESIONES=await cargar(); const hace7=Date.now()-7*864e5;
+    const sem=SESIONES.filter(x=>new Date(x.fecha).getTime()>hace7);
+    const rut=sem.filter(x=>x.rutina).length, bici=sem.reduce((a,x)=>a+(+x.bici||0),0);
+    $("#resumen").innerHTML = SESIONES.length
+      ? `<div class="text-sm text-slate-400 mb-1">Últimos 7 días</div>
+         <div class="flex gap-6"><div><span class="text-2xl font-bold text-amber-400">${rut}</span> / 3 rutinas</div>
+         <div><span class="text-2xl font-bold text-amber-400">${bici}</span> min de bici</div></div>
+         <div class="text-sm text-slate-400 mt-2">Última sesión: ${fechaTxt(SESIONES[0].fecha)}</div>`
+      : `Todavía no hay sesiones. Arrancá con la primera rutina.`;
+  }catch(e){ $("#resumen").textContent="No se pudieron cargar los datos. Revisá la conexión."; console.error(e); }
+  $("#niv").onchange=async e=>{ await guardarNivel(+e.target.value); HOY=null; pintarHoy(); toast("Nivel: "+NIVELES[nivel]); };
+  pintarHoy();
+}
+
+function pintarHoy(otra){
+  HOY = generar(otra?HOY.principal:null);
+  const dia=DIAS.find(d=>d.id===HOY.tipoDia), f=FORMATOS[HOY.formato];
+  $("#hoy").innerHTML = `
+    <div class="text-sm text-amber-400">Rutina de hoy · ~${HOY.minutos} min</div>
+    <div class="text-xl font-bold">${dia.nombre}</div>
+    <div class="text-sm text-slate-400 mb-2">${dia.foco}</div>
+    <div class="mb-3"><span class="chip">${f.n}</span> <span class="text-xs text-slate-400">${f.d}</span></div>
+    <div class="space-y-1 mb-4">${HOY.principal.map(id=>`
+      <div class="flex items-center gap-3">${mini(id)}<div><div class="text-sm font-medium">${EJ[id].n}</div><div class="text-xs text-slate-500">${PATRONES[EJ[id].p]}</div></div></div>`).join("")}
+    </div>
+    <div class="grid grid-cols-3 gap-2">
+      <button id="otra" class="btn b2 col-span-1 text-sm">Otra variante</button>
+      <button id="go" class="btn b1 col-span-2">Empezar</button>
+    </div>`;
+  $("#otra").onclick=()=>pintarHoy(true);
+  $("#go").onclick=vEntreno;
+}
+
+function vEjercicios(){
+  app().innerHTML = `
+  <button id="vol" class="text-slate-400 mb-3">← Volver</button>
+  <h1 class="text-2xl font-bold mb-1">Ejercicios</h1>
+  <p class="text-sm text-slate-400 mb-4">Cada día la app elige uno de cada grupo según tu nivel, sin repetir los de la vez anterior.</p>
+  ${Object.keys(PATRONES).map(p=>`
+    <h2 class="text-lg font-semibold mt-5 mb-2 text-amber-400">${PATRONES[p]}</h2>
+    ${Object.entries(EJ).filter(([,e])=>e.p===p).map(([id,e])=>`
+      <div class="card mb-3">
+        <div class="h-28 mb-2">${e.img}</div>
+        <div class="flex justify-between items-center"><div class="font-semibold">${e.n}</div>${e.lv?`<span class="chip">${NIVELES[e.lv]}</span>`:""}</div>
+        <div class="text-amber-400 text-sm mb-1">${dosis(id,"normal").txt}</div>
+        <div class="text-sm text-slate-300">${e.d}</div>
+      </div>`).join("")}`).join("")}`;
+  $("#vol").onclick=vHome;
+}
+
+// ---------- Entrenamiento ----------
+let E=null;
+async function lockOn(){try{E.lock=await navigator.wakeLock?.request("screen")}catch(e){}}
+function lockOff(){try{E?.lock?.release()}catch(e){}}
+
+function vEntreno(){
+  E={rutina:HOY,pasos:HOY.pasos,i:0,rest:0,timer:null,pausa:false,lock:null};
+  beep(660,0.05); lockOn(); paso();
+}
+function stopTimer(){ if(E?.timer){clearInterval(E.timer);E.timer=null;} }
+function siguiente(){ stopTimer(); E.i++; if(E.i>=E.pasos.length){ beep(988,0.5); lockOff(); vFin(); } else paso(); }
+function arrancar(seg, avisoMitad){
+  E.rest=seg; E.pausa=false; pintarReloj(); const mitad=Math.floor(seg/2);
+  E.timer=setInterval(()=>{ if(E.pausa) return; E.rest--;
+    if(avisoMitad && E.rest===mitad){ beep(523,0.15); }
+    if(E.rest<=3&&E.rest>0) beep(660,0.08); pintarReloj();
+    if(E.rest<=0){ beep(988,0.4); siguiente(); } },1000);
+}
+function pintarReloj(){ const r=$("#reloj"); if(r) r.textContent=fmt(Math.max(0,E.rest)); const p=$("#pau"); if(p) p.textContent=E.pausa?"Seguir":"Pausa"; }
+function proxEj(){ for(let j=E.i+1;j<E.pasos.length;j++) if(E.pasos[j].t==="ej") return E.pasos[j]; return null; }
+
+function paso(){
+  const st=E.pasos[E.i], total=E.pasos.length, pct=Math.round(E.i/total*100);
+  const cab = `
+    <div class="flex justify-between items-center mb-2">
+      <button id="fin" class="text-slate-400 text-sm">✕ Terminar</button>
+      <span class="text-sm text-slate-400">Paso ${E.i+1} de ${total}</span>
+    </div>
+    <div class="h-2 bg-slate-800 rounded-full mb-4"><div class="h-2 bg-amber-500 rounded-full" style="width:${pct}%"></div></div>`;
+  if(st.t==="desc"){
+    const n=proxEj(), e=EJ[n.id];
+    app().innerHTML = cab+`
+      <div class="text-center">
+        <div class="text-slate-400 uppercase tracking-wide text-sm">Descanso</div>
+        <div id="reloj" class="text-7xl font-bold my-4"></div>
+        <div class="card text-left mt-4">
+          <div class="text-sm text-slate-400">Sigue · ${n.etq}</div>
+          <div class="font-semibold">${e.n} <span class="text-amber-400 text-sm">· ${n.txt}</span></div>
+          <div class="h-24 mt-2">${e.img}</div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mt-4">
+          <button id="pau" class="btn b2">Pausa</button>
+          <button id="sal" class="btn b1">Saltar</button>
+        </div>
+      </div>`;
+    $("#pau").onclick=()=>{E.pausa=!E.pausa;pintarReloj();};
+    $("#sal").onclick=siguiente;
+    arrancar(st.seg,false);
+  } else {
+    const e=EJ[st.id];
+    app().innerHTML = cab+`
+      <div class="text-sm text-amber-400 mb-1">${st.etq}</div>
+      <h2 class="text-2xl font-bold mb-2">${e.n}</h2>
+      <div class="card mb-3"><div class="h-40">${e.img}</div></div>
+      <div class="text-xl font-semibold text-amber-400 mb-2">${st.txt}</div>
+      <p class="text-slate-300 text-sm mb-4">${e.d}</p>
+      ${st.tipo==="tiempo"
+        ? `<div id="reloj" class="text-6xl font-bold text-center mb-4"></div>
+           <div class="grid grid-cols-2 gap-3"><button id="pau" class="btn b2">Pausa</button><button id="sal" class="btn b1">Listo</button></div>`
+        : `<button id="sal" class="btn b1">Listo, siguiente</button>`}`;
+    $("#sal").onclick=siguiente;
+    if(st.tipo==="tiempo"){ $("#pau").onclick=()=>{E.pausa=!E.pausa;pintarReloj();}; arrancar(st.seg, !!e.lado); }
+  }
+  $("#fin").onclick=()=>{ if(confirm("Terminar la rutina ahora")){ stopTimer(); lockOff(); vRegistro(E.i>6?E.rutina:null); } };
+}
+
+function vFin(){
+  app().innerHTML = `
+  <div class="text-center pt-16">
+    <div class="text-6xl mb-4">🔥</div>
+    <h1 class="text-3xl font-bold mb-2">Rutina terminada</h1>
+    <p class="text-slate-400 mb-8">Anotá cómo te fue.</p>
+    <button id="r" class="btn b1">Registrar sesión</button>
+  </div>`;
+  $("#r").onclick=()=>vRegistro(E.rutina);
+}
+
+// ---------- Registro ----------
+function rodilla(id,nom){
+  return `<div class="card mb-3">
+    <div class="font-semibold mb-2">${nom}</div>
+    <div class="flex justify-between text-sm text-slate-400"><span>Dolor</span><span><b id="${id}v" class="text-amber-400 text-base">0</b> / 10</span></div>
+    <input type="range" id="${id}d" min="0" max="10" value="0">
+    <label class="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" id="${id}h" style="width:auto"> Se hinchó</label>
+  </div>`;
+}
+function vRegistro(rutina){
+  app().innerHTML = `
+  <button id="vol" class="text-slate-400 mb-3">← Volver</button>
+  <h1 class="text-2xl font-bold mb-4">Registro de hoy</h1>
+  <div class="card mb-3">
+    <label class="flex items-center gap-2 mb-3"><input type="checkbox" id="rut" style="width:auto" ${rutina?"checked":""}> Hice la rutina de casa</label>
+    <label class="block text-sm text-slate-400 mb-1">Minutos de bici</label>
+    <input type="number" id="bici" min="0" inputmode="numeric" placeholder="0">
+  </div>
+  <div class="card mb-3">
+    <div class="font-semibold mb-2">Cómo estuvo la rutina</div>
+    <select id="esf"><option value="">Sin dato</option><option value="facil">Fácil</option><option value="justa">Justa</option><option value="dura">Dura</option></select>
+  </div>
+  ${rodilla("izq","Rodilla izquierda (operada)")}
+  ${rodilla("der","Rodilla derecha")}
+  <div class="card mb-4">
+    <label class="block text-sm text-slate-400 mb-1">Nota (opcional)</label>
+    <textarea id="nota" rows="2" placeholder="Cómo te sentiste, algo que molestó..."></textarea>
+  </div>
+  <button id="ok" class="btn b1">Guardar</button>`;
+  ["izq","der"].forEach(k=>{$("#"+k+"d").oninput=e=>$("#"+k+"v").textContent=e.target.value;});
+  $("#vol").onclick=vHome;
+  $("#ok").onclick=async()=>{
+    const b=$("#ok"); b.disabled=true; b.textContent="Guardando…";
+    const hizo=$("#rut").checked;
+    const ses={fecha:new Date().toISOString(),rutina:hizo,bici:+$("#bici").value||0,esfuerzo:$("#esf").value,
+      izqDolor:+$("#izqd").value,izqHinch:$("#izqh").checked,derDolor:+$("#derd").value,derHinch:$("#derh").checked,
+      nota:$("#nota").value.trim()};
+    if(hizo && rutina){ Object.assign(ses,{tipoDia:rutina.tipoDia,formato:rutina.formato,ejercicios:rutina.principal,nivel}); }
+    try{ await guardar(ses); toast("Sesión guardada"); vHome(); }
+    catch(e){ console.error(e); b.disabled=false; b.textContent="Guardar"; alert("No se pudo guardar. Revisá la conexión."); }
+  };
+}
+
+// ---------- Historial ----------
+async function vHistorial(){
+  app().innerHTML = `<button id="vol" class="text-slate-400 mb-3">← Volver</button>
+    <h1 class="text-2xl font-bold mb-4">Historial</h1><div id="lst" class="text-slate-400">Cargando…</div>`;
+  $("#vol").onclick=vHome;
+  try{
+    const s=await cargar();
+    const rod=(n,d,h)=>{const mal=d>3||h; return `<span class="${mal?"text-red-400":"text-slate-300"}">${n}: ${d}/10${h?" · hinchada":""}</span>`;};
+    const esfTxt={facil:"Fácil",justa:"Justa",dura:"Dura"};
+    $("#lst").innerHTML = s.length ? s.map(x=>{
+      const dia=DIAS.find(d=>d.id===x.tipoDia);
+      return `<div class="card mb-3">
+        <div class="flex justify-between items-center mb-1">
+          <span class="font-semibold capitalize">${fechaTxt(x.fecha)}</span>
+          <span class="text-sm">${x.rutina?'<span class="text-emerald-400">✓ Rutina</span>':""}${x.bici?` <span class="text-amber-400 ml-2">🚲 ${x.bici} min</span>`:""}</span>
+        </div>
+        ${dia?`<div class="text-sm text-slate-400 mb-1">${dia.nombre} · ${FORMATOS[x.formato]?.n||""}${x.esfuerzo?` · ${esfTxt[x.esfuerzo]}`:""}</div>`:""}
+        ${x.ejercicios?`<div class="text-xs text-slate-500 mb-1">${x.ejercicios.map(id=>EJ[id]?.n||id).join(" · ")}</div>`:""}
+        <div class="text-sm flex flex-col">${rod("Izquierda",x.izqDolor,x.izqHinch)}${rod("Derecha",x.derDolor,x.derHinch)}</div>
+        ${x.nota?`<div class="text-sm text-slate-400 mt-1">${esc(x.nota)}</div>`:""}
+      </div>`;}).join("") : "Todavía no hay sesiones.";
+  }catch(e){ console.error(e); $("#lst").textContent="No se pudieron cargar los datos. Revisá la conexión."; }
+}
+
+// ---------- Inicio ----------
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(e=>console.warn(e)); }
+usuario ? vHome() : vLogin();
+</script>
+</body>
+</html>
